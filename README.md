@@ -1,20 +1,25 @@
 # backend-projects
-taskcli/
+task-tracker/
 ├── main.go
+
 ├── entity/
 │   └── entity.go         // Định nghĩa EntityID
+
 ├── component/
 │   ├── description.go    // Component mô tả
 │   ├── status.go         // Component trạng thái
 │   └── time.go           // Component thời gian
+
 ├── system/
 │   ├── add.go            // Thêm nhiệm vụ
 │   ├── update.go         // Cập nhật nhiệm vụ
 │   ├── delete.go         // Xoá nhiệm vụ
 │   ├── mark.go           // Đổi trạng thái
 │   └── list.go           // Liệt kê nhiệm vụ
+
 ├── storage/
 │   └── store.go          // Đọc/ghi JSON
+
 🚀 Cách chạy
 Cài đặt Go nếu chưa có: https://go.dev/dl
 
