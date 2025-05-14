@@ -1,4 +1,5 @@
 # backend-projects
+cd task-trackers
 task-tracker/
 
 ├── main.go
