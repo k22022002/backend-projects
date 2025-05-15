@@ -12,7 +12,8 @@ cd backend-projects/task-tracker
 Run the following command to build and run the project:
 
 go build -o task-tracker
-./task-tracker --help # To see the list of available commands
+
+task-tracker --help # To see the list of available commands
 
 To add a task
 
