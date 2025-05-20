@@ -1,4 +1,3 @@
-# 📝 Task Management API (Go - net/http)
 
 Đây là một RESTful API giúp bạn quản lý các công việc (task) như tạo mới, xem danh sách, cập nhật, xóa và lọc theo trạng thái.
 
