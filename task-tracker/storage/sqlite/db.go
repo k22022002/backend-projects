@@ -9,24 +9,36 @@ import (
 
 var DB *sql.DB
 
-func InitDB() {
+func InitDB() *sql.DB {
 	var err error
-	DB, err = sql.Open("sqlite", "tasks.db")
+	DB, err = sql.Open("sqlite", "data.db")
 	if err != nil {
-		log.Fatal("Failed to connect to SQLite:", err)
+		log.Fatal(err)
 	}
 
-	createTable := `
-	CREATE TABLE IF NOT EXISTS tasks (
+	createUsersTable := `CREATE TABLE IF NOT EXISTS users (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		description TEXT NOT NULL,
-		status TEXT NOT NULL,
-		created_at TEXT NOT NULL,
-		updated_at TEXT NOT NULL
+		username TEXT NOT NULL UNIQUE,
+		password TEXT NOT NULL
 	);`
 
-	_, err = DB.Exec(createTable)
+	createTasksTable := `CREATE TABLE IF NOT EXISTS tasks (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		description TEXT NOT NULL,
+		status TEXT DEFAULT 'pending',
+		created_at TEXT,
+		updated_at TEXT,
+		user_id INTEGER,
+		FOREIGN KEY(user_id) REFERENCES users(id)
+	);`
+
+	_, err = DB.Exec(createUsersTable)
 	if err != nil {
-		log.Fatal("Failed to create table:", err)
+		log.Fatal(err)
 	}
+	_, err = DB.Exec(createTasksTable)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return DB
 }
