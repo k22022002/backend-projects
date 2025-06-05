@@ -7,15 +7,21 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-var DB *sql.DB
-
-func InitDB() *sql.DB {
-	var err error
-	DB, err = sql.Open("sqlite", "data.db")
+func InitDB() (*sql.DB, error) {
+	db, err := sql.Open("sqlite", "data.db")
 	if err != nil {
 		log.Fatal(err)
 	}
+	if err := InitSchema(db); err != nil {
+		log.Fatal(err)
+	}
+	return db, nil
+}
 
+var DB *sql.DB
+
+// InitSchema nhận db để tạo bảng
+func InitSchema(db *sql.DB) error {
 	createUsersTable := `CREATE TABLE IF NOT EXISTS users (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		username TEXT NOT NULL UNIQUE,
@@ -32,13 +38,11 @@ func InitDB() *sql.DB {
 		FOREIGN KEY(user_id) REFERENCES users(id)
 	);`
 
-	_, err = DB.Exec(createUsersTable)
-	if err != nil {
-		log.Fatal(err)
+	if _, err := db.Exec(createUsersTable); err != nil {
+		return err
 	}
-	_, err = DB.Exec(createTasksTable)
-	if err != nil {
-		log.Fatal(err)
+	if _, err := db.Exec(createTasksTable); err != nil {
+		return err
 	}
-	return DB
+	return nil
 }
