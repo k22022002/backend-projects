@@ -614,3 +614,79 @@ func TestDeleteTask_DBError(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, rec.Code)
 	assert.Contains(t, rec.Body.String(), "database error")
 }
+func TestGetAllTasks_WithPaginationAndSearch(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("Failed to open mock sql db: %s", err)
+	}
+	defer db.Close()
+
+	h := &system.Handler{DB: db}
+
+	// ----- Test parameters -----
+	userID := 1
+	page := 2
+	limit := 2
+	offset := (page - 1) * limit
+	search := "test"
+
+	// ----- Mock count query -----
+	countQuery := `
+		SELECT COUNT\(\*\)
+		FROM tasks
+		WHERE user_id = \?
+		AND LOWER\(description\) LIKE \?
+	`
+
+	mock.ExpectQuery(countQuery).
+		WithArgs(userID, "%"+strings.ToLower(search)+"%").
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(5))
+
+	// ----- Mock data query -----
+	dataQuery := `
+		SELECT id, description, status, created_at, updated_at, user_id
+		FROM tasks
+		WHERE user_id = \?
+		AND LOWER\(description\) LIKE \?
+		ORDER BY created_at DESC
+		LIMIT \? OFFSET \?
+	`
+
+	mock.ExpectQuery(dataQuery).
+		WithArgs(userID, "%"+strings.ToLower(search)+"%", limit, offset).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "description", "status", "created_at", "updated_at", "user_id",
+		}).AddRow(1, "Test task", "pending", "2023-01-01", "2023-01-01", userID))
+
+	// ----- Create HTTP request -----
+	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/tasks?page=%d&limit=%d&search=%s", page, limit, search), nil)
+	// Inject context with userID
+	ctx := context.WithValue(req.Context(), "userID", userID)
+	req = req.WithContext(ctx)
+
+	// ----- Recorder -----
+	rec := httptest.NewRecorder()
+
+	// ----- Call handler -----
+	h.GetAllTasks(rec, req)
+
+	// ----- Validate -----
+	if rec.Code != http.StatusOK {
+		t.Fatalf("Expected status 200, got %d", rec.Code)
+	}
+
+	var resp map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("Invalid JSON: %v", err)
+	}
+
+	if int(resp["page"].(float64)) != page {
+		t.Errorf("Expected page %d, got %v", page, resp["page"])
+	}
+	if int(resp["limit"].(float64)) != limit {
+		t.Errorf("Expected limit %d, got %v", limit, resp["limit"])
+	}
+	if int(resp["total"].(float64)) != 5 {
+		t.Errorf("Expected total 5, got %v", resp["total"])
+	}
+}

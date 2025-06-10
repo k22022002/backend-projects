@@ -1,6 +1,7 @@
 package system
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 )
 
 func (h *Handler) GetAllTasks(w http.ResponseWriter, r *http.Request) {
+	// Xác thực user
 	userIDVal := r.Context().Value("userID")
 	userID, ok := userIDVal.(int)
 	if !ok {
@@ -21,53 +23,118 @@ func (h *Handler) GetAllTasks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rows, err := h.DB.Query("SELECT id, description, status, created_at, updated_at, user_id FROM tasks WHERE user_id = ?", userID)
+	// Lấy query params
+	query := r.URL.Query()
+	page, _ := strconv.Atoi(query.Get("page"))
+	limit, _ := strconv.Atoi(query.Get("limit"))
+	search := query.Get("search")
+
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 10
+	}
+	offset := (page - 1) * limit
+
+	// Xây dựng query
+	whereClause := "WHERE user_id = ?"
+	args := []interface{}{userID}
+
+	if search != "" {
+		whereClause += " AND LOWER(description) LIKE ?"
+		args = append(args, "%"+strings.ToLower(search)+"%")
+	}
+
+	// Đếm tổng số task
+	countQuery := "SELECT COUNT(*) FROM tasks " + whereClause
+	var total int
+	if err := h.DB.QueryRow(countQuery, args...).Scan(&total); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Lấy task theo phân trang
+	dataQuery := fmt.Sprintf(`
+		SELECT id, description, status, created_at, updated_at, user_id
+		FROM tasks %s
+		ORDER BY created_at DESC
+		LIMIT ? OFFSET ?`, whereClause)
+	args = append(args, limit, offset)
+
+	rows, err := h.DB.Query(dataQuery, args...)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	defer rows.Close()
 
+	// Lấy kết quả
 	tasks := []entity.Task{}
 	for rows.Next() {
 		var task entity.Task
-		rows.Scan(&task.ID, &task.Description, &task.Status, &task.CreatedAt, &task.UpdatedAt, &task.UserID)
+		if err := rows.Scan(&task.ID, &task.Description, &task.Status, &task.CreatedAt, &task.UpdatedAt, &task.UserID); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		tasks = append(tasks, task)
 	}
 
+	// Tính tổng số trang
+	totalPages := (total + limit - 1) / limit
+
+	// Response với metadata
+	response := map[string]interface{}{
+		"tasks":      tasks,
+		"total":      total,
+		"page":       page,
+		"limit":      limit,
+		"totalPages": totalPages,
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	prettyJSON, err := json.MarshalIndent(tasks, "", "  ")
-	if err != nil {
+	if err := json.NewEncoder(w).Encode(response); err != nil {
 		http.Error(w, "Error formatting JSON", http.StatusInternalServerError)
 		return
 	}
-	w.Write(prettyJSON)
 }
 
 func (h *Handler) GetTask(w http.ResponseWriter, r *http.Request) {
-	val := r.Context().Value("userID")
-	userID, ok := val.(int)
+	userIDVal := r.Context().Value("userID")
+	userID, ok := userIDVal.(int)
 	if !ok {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
-	id, _ := strconv.Atoi(mux.Vars(r)["id"])
+
+	idStr := mux.Vars(r)["id"]
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		http.Error(w, "Invalid task ID", http.StatusBadRequest)
+		return
+	}
 
 	var task entity.Task
-	err := h.DB.QueryRow("SELECT id, description, status, created_at, updated_at, user_id FROM tasks WHERE id = ? AND user_id = ?", id, userID).
+	err = h.DB.QueryRow(`
+		SELECT id, description, status, created_at, updated_at, user_id
+		FROM tasks
+		WHERE id = ? AND user_id = ?`,
+		id, userID).
 		Scan(&task.ID, &task.Description, &task.Status, &task.CreatedAt, &task.UpdatedAt, &task.UserID)
-	if err != nil {
+
+	if err == sql.ErrNoRows {
 		http.Error(w, "Task not found", http.StatusNotFound)
+		return
+	} else if err != nil {
+		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	prettyJSON, err := json.MarshalIndent(task, "", "  ")
-	if err != nil {
+	if err := json.NewEncoder(w).Encode(task); err != nil {
 		http.Error(w, "Error formatting JSON", http.StatusInternalServerError)
 		return
 	}
-	w.Write(prettyJSON)
 }
 
 func (h *Handler) CreateTask(w http.ResponseWriter, r *http.Request) {

@@ -1,38 +1,124 @@
-🧪 Hướng dẫn chạy test và xem coverage
-✅ 1. Chạy toàn bộ test
-Để chạy tất cả các test trong module (thư mục hiện tại và các thư mục con):
 
+Đây là một RESTful API giúp bạn quản lý các công việc (task) như tạo mới, xem danh sách, cập nhật, xóa và lọc theo trạng thái.
 
-go test ./...
-Nếu bạn muốn xem log chi tiết hơn:
+## 🚀 Khởi chạy server
 
+```bash
+go run main.go
+```
 
-go test -v ./...
-✅ 2. Chạy test với coverage
-Để kiểm tra mức độ bao phủ (coverage) của các test:
+Server sẽ chạy tại `http://localhost:8080`
 
-go test -cover ./...
-![alt text](image.png)
-![alt text](image-1.png)
-✅ 3. Xem chi tiết coverage bằng HTML
-Tạo báo cáo coverage và mở bằng trình duyệt:
+## 📚 Danh sách Endpoint
 
-go test -coverprofile=coverage.out ./...
-go tool cover -html=coverage.out
-Lệnh trên sẽ mở trình duyệt hiển thị chi tiết các dòng code được test và chưa được test.
+### 1. **Tạo task mới**
 
-✅ 4. Chạy test cho file hoặc function cụ thể
-File cụ thể:
+- **POST** `/tasks`
+- **Request Body (JSON):**
+```json
+{
+  "description": "Viết báo cáo môn học"
+}
+```
+- **Response:**
+```json
+{
+  "message": "Task added successfully"
+}
+```
 
-go test -v handler_test.go
-Hàm cụ thể:
+### 2. **Lấy danh sách tất cả task**
 
-go test -run ^TestRegister_Success$ -v
+- **GET** `/tasks`
+- **Response:**
+```json
+[
+  {
+    "id": 1,
+    "description": "Viết báo cáo môn học",
+    "status": "todo",
+    "createdAt": "2025-05-16 09:33:46",
+    "updatedAt": "2025-05-16 09:33:46"
+  }
+]
+```
 
-project/
-├── auth_handler.go
-├── handler_test.go
-├── task_handler.go
-├── middlerware.go
-├── middleware_test.go
-└── ...
+### 3. **Lọc task theo trạng thái**
+
+- **GET** `/tasks?status=todo`
+- Hỗ trợ các trạng thái: `todo`, `in-progress`, `done`
+- **Response:**
+```json
+[
+  {
+    "id": 1,
+    "description": "Task A",
+    "status": "todo",
+    "createdAt": "2025-05-16 09:33:46",
+    "updatedAt": "2025-05-16 09:33:46"
+  }
+]
+```
+
+### 4. **Xem chi tiết task theo ID**
+
+- **GET** `/tasks/{id}`
+- **Response:**
+```json
+{
+  "id": 2,
+  "description": "Task B",
+  "status": "in-progress",
+  "createdAt": "2025-05-16 09:33:50",
+  "updatedAt": "2025-05-16 10:00:00"
+}
+```
+
+### 5. **Cập nhật task**
+
+- **PUT** `/tasks/{id}`
+- **Request Body (JSON):**
+```json
+{
+  "description": "Cập nhật nội dung task",
+  "status": "done"
+}
+```
+- **Response:**
+```json
+{
+  "message": "Task updated successfully"
+}
+```
+
+### 6. **Xóa task**
+
+- **DELETE** `/tasks/{id}`
+- **Response:**
+```json
+{
+  "message": "Task deleted successfully"
+}
+```
+
+## ⚠️ Mã lỗi HTTP
+
+| Mã lỗi | Ý nghĩa                         |
+|--------|---------------------------------|
+| 400    | Request sai định dạng dữ liệu   |
+| 404    | Không tìm thấy task             |
+| 500    | Lỗi máy chủ khi xử lý           |
+
+## 🔒 Concurrency
+
+API đã xử lý an toàn concurrent read/write vào file bằng `sync.RWMutex`.
+
+## 📂 Lưu trữ dữ liệu
+
+Tất cả dữ liệu task được lưu trong file `data/tasks.json` dưới dạng mảng JSON.
+
+## 🧪 Test với Postman
+
+1. Mở Postman.
+2. Gửi các request như mô tả ở trên.
+3. Đảm bảo server Go đang chạy trước khi test.
