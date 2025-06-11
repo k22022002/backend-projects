@@ -116,3 +116,12 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		"token":   tokenString,
 	})
 }
+func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
+	err := h.DB.Ping()
+	if err != nil {
+		http.Error(w, "Database not reachable", http.StatusServiceUnavailable)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("OK"))
+}

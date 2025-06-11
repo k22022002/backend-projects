@@ -9,6 +9,7 @@ import (
 	handler "task-tracker/system"
 
 	"github.com/gorilla/mux"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func NewRouter() http.Handler {
@@ -21,7 +22,8 @@ func NewRouter() http.Handler {
 	// Public routes
 	r.HandleFunc("/register", h.Register).Methods("POST")
 	r.HandleFunc("/login", h.Login).Methods("POST")
-
+	r.HandleFunc("/health", h.Health).Methods("GET")
+	r.Handle("/metrics", promhttp.Handler())
 	// Protected routes
 	s := r.PathPrefix("/tasks").Subrouter()
 	s.Use(middleware.JWTMiddleware)

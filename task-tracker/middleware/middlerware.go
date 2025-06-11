@@ -4,10 +4,12 @@ import (
 	"context"
 	"net/http"
 	"strings"
+	"time"
 
 	handler "task-tracker/system"
 
 	"github.com/golang-jwt/jwt/v5"
+	"go.uber.org/zap"
 )
 
 func JWTMiddleware(next http.Handler) http.Handler {
@@ -31,4 +33,31 @@ func JWTMiddleware(next http.Handler) http.Handler {
 		ctx := context.WithValue(r.Context(), "userID", claims.UserID)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+func LoggingMiddleware(logger *zap.Logger) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			start := time.Now()
+			rw := &statusResponseWriter{ResponseWriter: w, statusCode: 200}
+			next.ServeHTTP(rw, r)
+			latency := time.Since(start)
+
+			logger.Info("HTTP Request",
+				zap.String("method", r.Method),
+				zap.String("path", r.URL.Path),
+				zap.Int("status", rw.statusCode),
+				zap.Duration("latency", latency),
+			)
+		})
+	}
+}
+
+type statusResponseWriter struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func (w *statusResponseWriter) WriteHeader(code int) {
+	w.statusCode = code
+	w.ResponseWriter.WriteHeader(code)
 }
