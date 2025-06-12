@@ -21,11 +21,15 @@ type Claims struct {
 }
 
 type Handler struct {
-	DB *sql.DB
+	DB   *sql.DB
+	Pool *NotificationWorkerPool
 }
 
-func NewHandler(db *sql.DB) *Handler {
-	return &Handler{DB: db}
+func NewHandler(db *sql.DB, pool *NotificationWorkerPool) *Handler {
+	return &Handler{
+		DB:   db,
+		Pool: pool,
+	}
 }
 
 func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {

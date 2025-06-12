@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"log"
 	"net/http"
 
@@ -18,13 +19,18 @@ func NewRouter() http.Handler {
 	if err != nil {
 		log.Fatal(err)
 	}
-	h := handler.NewHandler(db)
+	ctx := context.Background()
+	pool := handler.NewNotificationWorkerPool(db, 5) // Create a worker pool with 5 workers
+	pool.Start(ctx)                                  // Start the worker pool
+	h := handler.NewHandler(db, pool)
 	// Public routes
 	r.HandleFunc("/register", h.Register).Methods("POST")
 	r.HandleFunc("/login", h.Login).Methods("POST")
 	r.HandleFunc("/health", h.Health).Methods("GET")
 	r.Handle("/metrics", promhttp.Handler())
+
 	// Protected routes
+
 	s := r.PathPrefix("/tasks").Subrouter()
 	s.Use(middleware.JWTMiddleware)
 	s.HandleFunc("", h.GetAllTasks).Methods("GET")
@@ -33,6 +39,6 @@ func NewRouter() http.Handler {
 	s.HandleFunc("", h.CreateTask).Methods("POST")
 	s.HandleFunc("/{id:[0-9]+}", h.UpdateTask).Methods("PUT")
 	s.HandleFunc("/{id:[0-9]+}", h.DeleteTask).Methods("DELETE")
-
+	s.HandleFunc("/notifications", h.GetNotifications).Methods("GET")
 	return r
 }

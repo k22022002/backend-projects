@@ -9,12 +9,12 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
-	"testing"
-	"time"
-
 	"task-tracker/entity"
 	"task-tracker/system"
+	"testing"
+	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/gorilla/mux"
@@ -33,7 +33,7 @@ import (
 func TestRegister_Success(t *testing.T) {
 	db, mock, _ := sqlmock.New()
 	defer db.Close()
-	h := system.NewHandler(db)
+	h := system.NewHandler(db, nil)
 
 	user := entity.User{Username: "testuser", Password: "password123"}
 	body, _ := json.Marshal(user)
@@ -54,7 +54,7 @@ func TestRegister_Success(t *testing.T) {
 func TestRegister_InvalidBody(t *testing.T) {
 	db, _, _ := sqlmock.New()
 	defer db.Close()
-	h := system.NewHandler(db)
+	h := system.NewHandler(db, nil)
 
 	req := httptest.NewRequest("POST", "/register", strings.NewReader("invalid"))
 	rec := httptest.NewRecorder()
@@ -67,7 +67,7 @@ func TestRegister_InvalidBody(t *testing.T) {
 func TestRegister_EmptyUsernameOrPassword(t *testing.T) {
 	db, _, _ := sqlmock.New()
 	defer db.Close()
-	h := system.NewHandler(db)
+	h := system.NewHandler(db, nil)
 
 	user := entity.User{}
 	body, _ := json.Marshal(user)
@@ -82,7 +82,7 @@ func TestRegister_EmptyUsernameOrPassword(t *testing.T) {
 func TestRegister_DBError(t *testing.T) {
 	db, mock, _ := sqlmock.New()
 	defer db.Close()
-	h := system.NewHandler(db)
+	h := system.NewHandler(db, nil)
 
 	user := entity.User{Username: "testuser", Password: "password123"}
 	body, _ := json.Marshal(user)
@@ -103,7 +103,7 @@ func TestRegister_DBError(t *testing.T) {
 func TestLogin_Success(t *testing.T) {
 	db, mock, _ := sqlmock.New()
 	defer db.Close()
-	h := system.NewHandler(db)
+	h := system.NewHandler(db, nil)
 
 	password := "password123"
 	hashed, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
@@ -128,7 +128,7 @@ func TestLogin_Success(t *testing.T) {
 func TestLogin_InvalidPassword(t *testing.T) {
 	db, mock, _ := sqlmock.New()
 	defer db.Close()
-	h := system.NewHandler(db)
+	h := system.NewHandler(db, nil)
 
 	hashed, _ := bcrypt.GenerateFromPassword([]byte("correct-password"), bcrypt.DefaultCost)
 
@@ -152,7 +152,7 @@ func TestLogin_InvalidPassword(t *testing.T) {
 func TestLogin_InvalidUser(t *testing.T) {
 	db, mock, _ := sqlmock.New()
 	defer db.Close()
-	h := system.NewHandler(db)
+	h := system.NewHandler(db, nil)
 
 	mock.ExpectQuery("SELECT id, password FROM users").
 		WithArgs("unknown").
@@ -171,7 +171,7 @@ func TestLogin_InvalidUser(t *testing.T) {
 func TestLogin_DBError(t *testing.T) {
 	db, mock, _ := sqlmock.New()
 	defer db.Close()
-	h := system.NewHandler(db)
+	h := system.NewHandler(db, nil)
 
 	mock.ExpectQuery("SELECT id, password FROM users").
 		WithArgs("testuser").
@@ -191,7 +191,7 @@ func TestLogin_DBError(t *testing.T) {
 func TestLogin_InvalidBody(t *testing.T) {
 	db, _, _ := sqlmock.New()
 	defer db.Close()
-	h := system.NewHandler(db)
+	h := system.NewHandler(db, nil)
 
 	req := httptest.NewRequest("POST", "/login", strings.NewReader("not-json"))
 	rec := httptest.NewRecorder()
@@ -452,12 +452,12 @@ func TestUpdateTask_InvalidTaskID(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
 	assert.Contains(t, rec.Body.String(), "Invalid task ID")
 }
-func TestUpdateTask_EmptyDescription(t *testing.T) {
+func TestUpdateTask_BothFieldsEmpty_ShouldReturnBadRequest(t *testing.T) {
 	db, _, _ := sqlmock.New()
 	defer db.Close()
 	h := &system.Handler{DB: db}
 
-	body := `{"description":"   ","status":"todo"}`
+	body := `{"description":"   ","status":"  "}`
 	req := httptest.NewRequest("PUT", "/tasks/1", strings.NewReader(body))
 	req = mux.SetURLVars(req, map[string]string{"id": "1"})
 	req = req.WithContext(context.WithValue(req.Context(), "userID", 1))
@@ -466,14 +466,19 @@ func TestUpdateTask_EmptyDescription(t *testing.T) {
 	h.UpdateTask(rec, req)
 
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
-	assert.Contains(t, rec.Body.String(), "Description is required")
+	assert.Contains(t, rec.Body.String(), "At least description or status must be provided")
 }
-func TestUpdateTask_InvalidStatus(t *testing.T) {
-	db, _, _ := sqlmock.New()
+
+func TestUpdateTask_OnlyDescriptionProvided_ShouldSucceed(t *testing.T) {
+	db, mock, _ := sqlmock.New()
 	defer db.Close()
 	h := &system.Handler{DB: db}
 
-	body := `{"description":"Some Task","status":"invalid_status"}`
+	mock.ExpectExec(regexp.QuoteMeta("UPDATE tasks SET description = ?, status = ?, updated_at = ? WHERE id = ? AND user_id = ?")).
+		WithArgs("New description", "", sqlmock.AnyArg(), 1, 1).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+
+	body := `{"description":"New description"}`
 	req := httptest.NewRequest("PUT", "/tasks/1", strings.NewReader(body))
 	req = mux.SetURLVars(req, map[string]string{"id": "1"})
 	req = req.WithContext(context.WithValue(req.Context(), "userID", 1))
@@ -481,8 +486,8 @@ func TestUpdateTask_InvalidStatus(t *testing.T) {
 
 	h.UpdateTask(rec, req)
 
-	assert.Equal(t, http.StatusBadRequest, rec.Code)
-	assert.Contains(t, rec.Body.String(), "Status must be one of: todo, in_progress, done")
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Contains(t, rec.Body.String(), "Task updated successfully")
 }
 func TestUpdateTask_NotFoundOrUnauthorized(t *testing.T) {
 	db, mock, _ := sqlmock.New()
@@ -523,6 +528,46 @@ func TestUpdateTask_DBError(t *testing.T) {
 
 	assert.Equal(t, http.StatusInternalServerError, rec.Code)
 	assert.Contains(t, rec.Body.String(), "database error")
+}
+func TestUpdateTask_OnlyStatusProvided_ShouldSucceed(t *testing.T) {
+	db, mock, _ := sqlmock.New()
+	defer db.Close()
+	h := &system.Handler{DB: db}
+
+	mock.ExpectExec(regexp.QuoteMeta("UPDATE tasks SET description = ?, status = ?, updated_at = ? WHERE id = ? AND user_id = ?")).
+		WithArgs("", "done", sqlmock.AnyArg(), 1, 1).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+
+	body := `{"status":"done"}`
+	req := httptest.NewRequest("PUT", "/tasks/1", strings.NewReader(body))
+	req = mux.SetURLVars(req, map[string]string{"id": "1"})
+	req = req.WithContext(context.WithValue(req.Context(), "userID", 1))
+	rec := httptest.NewRecorder()
+
+	h.UpdateTask(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Contains(t, rec.Body.String(), "Task updated successfully")
+}
+func TestUpdateTask_EmptyDescriptionButValidStatus_ShouldSucceed(t *testing.T) {
+	db, mock, _ := sqlmock.New()
+	defer db.Close()
+	h := &system.Handler{DB: db}
+
+	mock.ExpectExec(regexp.QuoteMeta("UPDATE tasks SET description = ?, status = ?, updated_at = ? WHERE id = ? AND user_id = ?")).
+		WithArgs("   ", "done", sqlmock.AnyArg(), 1, 1).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+
+	body := `{"description":"   ","status":"done"}`
+	req := httptest.NewRequest("PUT", "/tasks/1", strings.NewReader(body))
+	req = mux.SetURLVars(req, map[string]string{"id": "1"})
+	req = req.WithContext(context.WithValue(req.Context(), "userID", 1))
+	rec := httptest.NewRecorder()
+
+	h.UpdateTask(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Contains(t, rec.Body.String(), "Task updated successfully")
 }
 
 func TestDeleteTask_NotFound(t *testing.T) {
@@ -689,4 +734,35 @@ func TestGetAllTasks_WithPaginationAndSearch(t *testing.T) {
 	if int(resp["total"].(float64)) != 5 {
 		t.Errorf("Expected total 5, got %v", resp["total"])
 	}
+}
+func TestHandler_GetNotifications(t *testing.T) {
+	db, mock, _ := sqlmock.New()
+	defer db.Close()
+
+	now := time.Now().Format(time.RFC3339)
+	rows := sqlmock.NewRows([]string{"id", "task_id", "message", "created_at"}).
+		AddRow(1, 1, "Task created", now).
+		AddRow(2, 1, "Task updated", now)
+
+	mock.ExpectQuery("SELECT n.id, n.task_id, n.message, n.created_at").
+		WithArgs(42).
+		WillReturnRows(rows)
+
+	handler := system.NewHandler(db, nil)
+
+	req := httptest.NewRequest("GET", "/notifications", nil)
+	req = req.WithContext(context.WithValue(req.Context(), "userID", 42))
+
+	rec := httptest.NewRecorder()
+	handler.GetNotifications(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+
+	var notifications []entity.Notification
+	err := json.Unmarshal(rec.Body.Bytes(), &notifications)
+	assert.NoError(t, err)
+	assert.Len(t, notifications, 2)
+	assert.Equal(t, "Task created", notifications[0].Message)
+
+	assert.NoError(t, mock.ExpectationsWereMet())
 }

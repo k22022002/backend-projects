@@ -37,7 +37,16 @@ func InitSchema(db *sql.DB) error {
 		user_id INTEGER,
 		FOREIGN KEY(user_id) REFERENCES users(id)
 	);`
-
+	createNotificationsTable := `CREATE TABLE IF NOT EXISTS notifications (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		task_id INTEGER,
+		message TEXT NOT NULL,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY(task_id) REFERENCES tasks(id)
+		);`
+	if _, err := db.Exec(createNotificationsTable); err != nil {
+		return err
+	}
 	if _, err := db.Exec(createUsersTable); err != nil {
 		return err
 	}

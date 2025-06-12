@@ -197,6 +197,12 @@ func (h *Handler) CreateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Write(prettyJSON)
+	if h.Pool != nil && h.Pool.JobQueue != nil {
+		h.Pool.JobQueue <- NotificationJob{
+			TaskID:  task.ID,
+			Message: fmt.Sprintf("New task created: %s", task.Description),
+		}
+	}
 }
 
 func (h *Handler) UpdateTask(w http.ResponseWriter, r *http.Request) {
@@ -218,21 +224,23 @@ func (h *Handler) UpdateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Kiểm tra description không được rỗng
-	if strings.TrimSpace(task.Description) == "" {
-		http.Error(w, "Description is required", http.StatusBadRequest)
+	// ít nhất 1 trong 2 phải có
+	if strings.TrimSpace(task.Description) == "" && strings.TrimSpace(task.Status) == "" {
+		http.Error(w, "At least description or status must be provided", http.StatusBadRequest)
 		return
 	}
 
 	// Kiểm tra status hợp lệ
-	validStatuses := map[string]bool{
-		"todo":        true,
-		"in_progress": true,
-		"done":        true,
-	}
-	if _, valid := validStatuses[task.Status]; !valid {
-		http.Error(w, "Status must be one of: todo, in_progress, done", http.StatusBadRequest)
-		return
+	if task.Status != "" {
+		validStatuses := map[string]bool{
+			"todo":        true,
+			"in_progress": true,
+			"done":        true,
+		}
+		if _, valid := validStatuses[task.Status]; !valid {
+			http.Error(w, "Status must be one of: todo, in_progress, done", http.StatusBadRequest)
+			return
+		}
 	}
 
 	updatedAt := time.Now().Format(time.RFC3339)
@@ -257,6 +265,12 @@ func (h *Handler) UpdateTask(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("Task updated successfully"))
+	if task.Status == "done" && h.Pool != nil && h.Pool.JobQueue != nil {
+		h.Pool.JobQueue <- NotificationJob{
+			TaskID:  id,
+			Message: fmt.Sprintf("Task '%s' marked as done.", task.Description),
+		}
+	}
 }
 
 func (h *Handler) DeleteTask(w http.ResponseWriter, r *http.Request) {
