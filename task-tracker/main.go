@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"task-tracker/api"
+	"task-tracker/cache"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -15,6 +16,9 @@ func main() {
 	r := api.NewRouter()
 	log.Println("Server is running at http://localhost:8080")
 	http.ListenAndServe(":8080", r)
+	if err := cache.InitRedis("redis:6379"); err != nil {
+		log.Fatalf("Không thể kết nối Redis: %v", err)
+	}
 }
 func InitLogger() *zap.Logger {
 	w := zapcore.AddSync(&lumberjack.Logger{

@@ -1,6 +1,7 @@
 package system
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"task-tracker/cache"
 	"task-tracker/entity"
 
 	"github.com/gorilla/mux"
@@ -25,6 +27,15 @@ func (h *Handler) GetAllTasks(w http.ResponseWriter, r *http.Request) {
 
 	// Lấy query params
 	query := r.URL.Query()
+	status := query.Get("status") // nếu có filter
+	cacheKey := fmt.Sprintf("tasks:user:%d:status:%s", userID, status)
+
+	// 🧠 Try Redis cache
+	if cached, err := cache.Get(cacheKey); err == nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(cached))
+		return
+	}
 	page, _ := strconv.Atoi(query.Get("page"))
 	limit, _ := strconv.Atoi(query.Get("limit"))
 	search := query.Get("search")
@@ -91,6 +102,9 @@ func (h *Handler) GetAllTasks(w http.ResponseWriter, r *http.Request) {
 		"limit":      limit,
 		"totalPages": totalPages,
 	}
+	// Set Redis cache
+	jsonResp, _ := json.Marshal(response)
+	cache.Set(cacheKey, string(jsonResp), 5*time.Minute)
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
@@ -113,7 +127,13 @@ func (h *Handler) GetTask(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid task ID", http.StatusBadRequest)
 		return
 	}
+	cacheKey := fmt.Sprintf("task:%d", id)
 
+	if cached, err := cache.Get(cacheKey); err == nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(cached))
+		return
+	}
 	var task entity.Task
 	err = h.DB.QueryRow(`
 		SELECT id, description, status, created_at, updated_at, user_id
@@ -129,7 +149,8 @@ func (h *Handler) GetTask(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
-
+	jsonResp, _ := json.Marshal(task)
+	cache.Set(cacheKey, string(jsonResp), 5*time.Minute)
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(task); err != nil {
 		http.Error(w, "Error formatting JSON", http.StatusInternalServerError)
@@ -203,6 +224,7 @@ func (h *Handler) CreateTask(w http.ResponseWriter, r *http.Request) {
 			Message: fmt.Sprintf("New task created: %s", task.Description),
 		}
 	}
+	cache.Delete("tasks:user:*") // xóa toàn bộ danh sách (có thể tinh chỉnh theo user cụ thể)
 }
 
 func (h *Handler) UpdateTask(w http.ResponseWriter, r *http.Request) {
@@ -213,6 +235,8 @@ func (h *Handler) UpdateTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	id, err := strconv.Atoi(mux.Vars(r)["id"])
+	cache.Delete("task:" + strconv.Itoa(id))
+	cache.Delete("tasks:user:*")
 	if err != nil {
 		http.Error(w, "Invalid task ID", http.StatusBadRequest)
 		return
@@ -287,6 +311,22 @@ func (h *Handler) DeleteTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Truy vấn status để xóa cache theo key đúng
+	var status string
+	err = h.DB.QueryRow("SELECT status FROM tasks WHERE id = ? AND user_id = ?", id, userID).Scan(&status)
+	if err == sql.ErrNoRows {
+		http.Error(w, "Task not found", http.StatusNotFound)
+		return
+	} else if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Xóa cache
+	cache.RedisClient.Del(context.Background(), fmt.Sprintf("task:%d", id))
+	cache.RedisClient.Del(context.Background(), fmt.Sprintf("tasks:user:%d:status:%s", userID, status))
+
+	// Xóa DB
 	res, err := h.DB.Exec("DELETE FROM tasks WHERE id = ? AND user_id = ?", id, userID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

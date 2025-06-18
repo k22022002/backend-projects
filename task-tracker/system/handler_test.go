@@ -580,13 +580,15 @@ func TestDeleteTask_NotFound(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), "userID", 1))
 	rec := httptest.NewRecorder()
 
-	mock.ExpectExec("DELETE FROM tasks").
+	// Mock: không tìm thấy task
+	mock.ExpectQuery("SELECT status FROM tasks").
 		WithArgs(999, 1).
-		WillReturnResult(sqlmock.NewResult(0, 0))
+		WillReturnError(sql.ErrNoRows)
 
 	h.DeleteTask(rec, req)
 
 	assert.Equal(t, http.StatusNotFound, rec.Code)
+	assert.Contains(t, rec.Body.String(), "Task not found")
 }
 
 func TestDeleteTask_Success(t *testing.T) {
@@ -599,6 +601,12 @@ func TestDeleteTask_Success(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), "userID", 1))
 	rec := httptest.NewRecorder()
 
+	// Mock: trả về status = "todo"
+	mock.ExpectQuery("SELECT status FROM tasks").
+		WithArgs(1, 1).
+		WillReturnRows(sqlmock.NewRows([]string{"status"}).AddRow("todo"))
+
+	// Mock: xóa thành công
 	mock.ExpectExec("DELETE FROM tasks").
 		WithArgs(1, 1).
 		WillReturnResult(sqlmock.NewResult(0, 1))
@@ -608,6 +616,7 @@ func TestDeleteTask_Success(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rec.Code)
 	assert.Contains(t, rec.Body.String(), "deleted successfully")
 }
+
 func TestDeleteTask_Unauthorized(t *testing.T) {
 	db, _, _ := sqlmock.New()
 	defer db.Close()
@@ -615,7 +624,7 @@ func TestDeleteTask_Unauthorized(t *testing.T) {
 
 	req := httptest.NewRequest("DELETE", "/tasks/1", nil)
 	req = mux.SetURLVars(req, map[string]string{"id": "1"})
-	// Không gán userID vào context
+	// Không set userID vào context
 	rec := httptest.NewRecorder()
 
 	h.DeleteTask(rec, req)
@@ -650,6 +659,12 @@ func TestDeleteTask_DBError(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), "userID", 1))
 	rec := httptest.NewRecorder()
 
+	// Mock: query lấy status thành công
+	mock.ExpectQuery("SELECT status FROM tasks").
+		WithArgs(1, 1).
+		WillReturnRows(sqlmock.NewRows([]string{"status"}).AddRow("todo"))
+
+	// Mock: lỗi khi delete
 	mock.ExpectExec("DELETE FROM tasks").
 		WithArgs(1, 1).
 		WillReturnError(fmt.Errorf("database error"))
@@ -659,6 +674,7 @@ func TestDeleteTask_DBError(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, rec.Code)
 	assert.Contains(t, rec.Body.String(), "database error")
 }
+
 func TestGetAllTasks_WithPaginationAndSearch(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {
