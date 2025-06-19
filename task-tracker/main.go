@@ -3,7 +3,6 @@ package main
 import (
 	"log"
 	"net/http"
-
 	"task-tracker/api"
 	"task-tracker/cache"
 
@@ -13,13 +12,20 @@ import (
 )
 
 func main() {
-	r := api.NewRouter()
-	log.Println("Server is running at http://localhost:8080")
-	http.ListenAndServe(":8080", r)
+	// ✅ Khởi tạo Redis trước khi chạy HTTP server
 	if err := cache.InitRedis("redis:6379"); err != nil {
 		log.Fatalf("Không thể kết nối Redis: %v", err)
 	}
+
+	// ✅ Khởi tạo router
+	r := api.NewRouter()
+
+	log.Println("🚀 Server is running at http://localhost:8080")
+	if err := http.ListenAndServe(":8080", r); err != nil {
+		log.Fatalf("Lỗi khi chạy server: %v", err)
+	}
 }
+
 func InitLogger() *zap.Logger {
 	w := zapcore.AddSync(&lumberjack.Logger{
 		Filename:   "logs/app.log",

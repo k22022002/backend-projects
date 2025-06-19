@@ -11,7 +11,9 @@ import (
 	"time"
 
 	"task-tracker/cache"
+	"task-tracker/common"
 	"task-tracker/entity"
+	"task-tracker/ws"
 
 	"github.com/gorilla/mux"
 )
@@ -218,6 +220,12 @@ func (h *Handler) CreateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Write(prettyJSON)
+	if ws.WsHub != nil {
+		ws.WsHub.Broadcast <- common.NotificationJob{
+			TaskID:  userID,
+			Message: fmt.Sprintf(`{"event":"task_created", "task_id":%d, "description":"%s"}`, task.ID, task.Description),
+		}
+	}
 	if h.Pool != nil && h.Pool.JobQueue != nil {
 		h.Pool.JobQueue <- NotificationJob{
 			TaskID:  task.ID,
@@ -289,6 +297,13 @@ func (h *Handler) UpdateTask(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("Task updated successfully"))
+	if ws.WsHub != nil {
+		ws.WsHub.Broadcast <- common.NotificationJob{
+			TaskID:  userID,
+			Message: fmt.Sprintf(`{"event":"task_updated", "task_id":%d, "description":"%s"}`, id, task.Description),
+		}
+	}
+
 	if task.Status == "done" && h.Pool != nil && h.Pool.JobQueue != nil {
 		h.Pool.JobQueue <- NotificationJob{
 			TaskID:  id,
@@ -346,6 +361,13 @@ func (h *Handler) DeleteTask(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(fmt.Sprintf("Task with ID %d deleted successfully", id)))
+	if ws.WsHub != nil {
+		ws.WsHub.Broadcast <- common.NotificationJob{
+			TaskID:  userID,
+			Message: fmt.Sprintf(`{"event":"task-deleted", "task_id":%d, "description":"Task deleted"}`, id),
+		}
+	}
+
 }
 
 func (h *Handler) FilterTasksByStatus(w http.ResponseWriter, r *http.Request) {
