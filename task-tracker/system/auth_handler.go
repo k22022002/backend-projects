@@ -32,6 +32,17 @@ func NewHandler(db *sql.DB, pool *NotificationWorkerPool) *Handler {
 	}
 }
 
+// Register godoc
+// @Summary Register new user
+// @Description Register a new account with username and password
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param user body entity.User true "User credentials"
+// @Success 201 {object} map[string]string
+// @Failure 400 {string} string "Invalid request"
+// @Failure 500 {string} string "Server error"
+// @Router /register [post]
 func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	var user entity.User
 	err := json.NewDecoder(r.Body).Decode(&user)
@@ -67,6 +78,17 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"message": "Registration successful"})
 }
 
+// Login godoc
+// @Summary User login
+// @Description Authenticate user and return JWT token
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param user body entity.User true "User credentials"
+// @Success 200 {object} map[string]string
+// @Failure 400 {string} string "Invalid request"
+// @Failure 401 {string} string "Unauthorized"
+// @Router /login [post]
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	var creds entity.User
 	err := json.NewDecoder(r.Body).Decode(&creds)

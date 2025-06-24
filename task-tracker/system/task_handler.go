@@ -18,6 +18,21 @@ import (
 	"github.com/gorilla/mux"
 )
 
+// GetAllTasks godoc
+// @Summary Get all tasks
+// @Description Retrieve tasks for the authenticated user. Supports filtering by status and pagination.
+// @Tags tasks
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param status query string false "Filter by task status (todo|in-progress|done)"
+// @Param page query int false "Page number"
+// @Param limit query int false "Number of items per page"
+// @Param search query string false "Search by description"
+// @Success 200 {array} entity.Task
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 500 {string} string "Internal server error"
+// @Router /tasks [get]
 func (h *Handler) GetAllTasks(w http.ResponseWriter, r *http.Request) {
 	// Xác thực user
 	userIDVal := r.Context().Value("userID")
@@ -115,6 +130,19 @@ func (h *Handler) GetAllTasks(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// GetTaskByID godoc
+// @Summary Get a task by ID
+// @Description Retrieve a single task by its ID
+// @Tags tasks
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param id path int true "Task ID"
+// @Success 200 {object} entity.Task
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 404 {string} string "Task not found"
+// @Failure 500 {string} string "Server error"
+// @Router /tasks/{id} [get]
 func (h *Handler) GetTask(w http.ResponseWriter, r *http.Request) {
 	userIDVal := r.Context().Value("userID")
 	userID, ok := userIDVal.(int)
@@ -160,6 +188,19 @@ func (h *Handler) GetTask(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// CreateTask godoc
+// @Summary Create a new task
+// @Description Create a task for the authenticated user
+// @Tags tasks
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param task body entity.Task true "Task to create"
+// @Success 201 {object} entity.Task
+// @Failure 400 {string} string "Invalid request"
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 500 {string} string "Server error"
+// @Router /tasks [post]
 func (h *Handler) CreateTask(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value("userID").(int)
 	if !ok {
@@ -235,6 +276,21 @@ func (h *Handler) CreateTask(w http.ResponseWriter, r *http.Request) {
 	cache.Delete("tasks:user:*") // xóa toàn bộ danh sách (có thể tinh chỉnh theo user cụ thể)
 }
 
+// UpdateTask godoc
+// @Summary Update a task
+// @Description Update task fields by ID
+// @Tags tasks
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param id path int true "Task ID"
+// @Param task body entity.Task true "Updated task"
+// @Success 200 {object} entity.Task
+// @Failure 400 {string} string "Invalid request"
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 404 {string} string "Task not found"
+// @Failure 500 {string} string "Server error"
+// @Router /tasks/{id} [put]
 func (h *Handler) UpdateTask(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value("userID").(int)
 	if !ok {
@@ -312,6 +368,19 @@ func (h *Handler) UpdateTask(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// DeleteTask godoc
+// @Summary Delete a task
+// @Description Delete task by ID
+// @Tags tasks
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param id path int true "Task ID"
+// @Success 204 {string} string "No content"
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 404 {string} string "Task not found"
+// @Failure 500 {string} string "Server error"
+// @Router /tasks/{id} [delete]
 func (h *Handler) DeleteTask(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value("userID").(int)
 	if !ok {

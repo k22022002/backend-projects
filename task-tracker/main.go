@@ -11,6 +11,24 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
+// @title Task Tracker API
+// @version 1.0
+// @description REST API for task tracking with JWT authentication
+// @termsOfService http://swagger.io/terms/
+
+// @contact.name G G Dev Team
+// @contact.email contact@example.com
+
+// @license.name MIT
+// @license.url https://opensource.org/licenses/MIT
+
+// @host localhost:8080
+// @BasePath /
+
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+
 func main() {
 	// ✅ Khởi tạo Redis trước khi chạy HTTP server
 	if err := cache.InitRedis("redis:6379"); err != nil {
