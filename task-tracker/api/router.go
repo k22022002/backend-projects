@@ -4,7 +4,9 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"time"
 
+	"task-tracker/cache"
 	_ "task-tracker/docs" // Import the generated docs package
 	"task-tracker/middleware"
 	"task-tracker/storage/sqlite"
@@ -30,7 +32,6 @@ func NewRouter() http.Handler {
 
 	//  Khởi tạo handler chính
 	h := handler.NewHandler(db, pool)
-
 	//  Khởi tạo hub và chạy nó
 	ws.WsHub = ws.NewHub()
 	go ws.WsHub.Run()
@@ -45,8 +46,11 @@ func NewRouter() http.Handler {
 	r.HandleFunc("/health", h.Health).Methods("GET")
 	r.Handle("/metrics", promhttp.Handler())
 	r.PathPrefix("/swagger/").Handler(httpSwagger.WrapHandler)
+
 	//  Protected routes
 	s := r.PathPrefix("/tasks").Subrouter()
+	rateLimiter := middleware.NewRateLimiter(cache.RedisClient, 100, time.Hour)
+	s.Use(rateLimiter.Middleware)
 	s.Use(middleware.JWTMiddleware)
 	s.HandleFunc("", h.GetAllTasks).Methods("GET")
 	s.HandleFunc("/filter", h.FilterTasksByStatus).Methods("GET")
@@ -55,6 +59,6 @@ func NewRouter() http.Handler {
 	s.HandleFunc("/{id:[0-9]+}", h.UpdateTask).Methods("PUT")
 	s.HandleFunc("/{id:[0-9]+}", h.DeleteTask).Methods("DELETE")
 	s.HandleFunc("/notifications", h.GetNotifications).Methods("GET")
-
+	r.Handle("/rate-limit", middleware.JWTMiddleware(http.HandlerFunc(handler.RateLimitStatusHandler))).Methods("GET")
 	return r
 }

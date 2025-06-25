@@ -72,6 +72,32 @@ const docTemplate = `{
                 }
             }
         },
+        "/rate-limit": {
+            "get": {
+                "description": "Return remaining requests and reset time",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Rate Limit"
+                ],
+                "summary": "Get current rate limit status",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/system.RateLimitStatus"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
         "/register": {
             "post": {
                 "description": "Register a new account with username and password",
@@ -457,6 +483,18 @@ const docTemplate = `{
                 },
                 "username": {
                     "type": "string"
+                }
+            }
+        },
+        "system.RateLimitStatus": {
+            "type": "object",
+            "properties": {
+                "remaining": {
+                    "type": "integer"
+                },
+                "reset": {
+                    "description": "seconds until reset",
+                    "type": "integer"
                 }
             }
         }

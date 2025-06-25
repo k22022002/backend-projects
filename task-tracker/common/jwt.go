@@ -1,8 +1,6 @@
 package common
 
 import (
-	"fmt"
-
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -13,13 +11,13 @@ type Claims struct {
 	jwt.RegisteredClaims
 }
 
-func ValidateToken(tokenString string) (string, error) {
+func ValidateToken(tokenString string) (int, error) {
 	claims := &Claims{}
 	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
 		return jwtKey, nil
 	})
 	if err != nil || !token.Valid {
-		return "", err
+		return 0, err
 	}
-	return fmt.Sprintf("%d", claims.UserID), nil
+	return claims.UserID, nil
 }

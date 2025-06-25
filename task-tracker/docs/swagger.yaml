@@ -24,6 +24,14 @@ definitions:
       username:
         type: string
     type: object
+  system.RateLimitStatus:
+    properties:
+      remaining:
+        type: integer
+      reset:
+        description: seconds until reset
+        type: integer
+    type: object
 host: localhost:8080
 info:
   contact:
@@ -69,6 +77,23 @@ paths:
       summary: User login
       tags:
       - auth
+  /rate-limit:
+    get:
+      description: Return remaining requests and reset time
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/system.RateLimitStatus'
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+      summary: Get current rate limit status
+      tags:
+      - Rate Limit
   /register:
     post:
       consumes:

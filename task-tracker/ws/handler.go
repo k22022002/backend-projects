@@ -3,6 +3,7 @@ package ws
 import (
 	"log"
 	"net/http"
+	"strconv"
 	"task-tracker/common"
 )
 
@@ -22,7 +23,7 @@ func HandleWS(w http.ResponseWriter, r *http.Request) {
 
 	client := &Client{
 		Conn:   conn,
-		UserID: userID,
+		UserID: strconv.Itoa(userID),
 		Send:   make(chan []byte, 256),
 	}
 

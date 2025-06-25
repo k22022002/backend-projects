@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"task-tracker/common"
 	handler "task-tracker/system"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -30,7 +31,8 @@ func JWTMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		ctx := context.WithValue(r.Context(), "userID", claims.UserID)
+		ctx := context.WithValue(r.Context(), common.ContextUserIDKey, claims.UserID)
+
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
