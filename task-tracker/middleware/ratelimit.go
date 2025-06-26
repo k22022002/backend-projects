@@ -5,18 +5,19 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"task-tracker/cache"
 	"time"
 
 	"github.com/go-redis/redis/v8"
 )
 
 type RateLimiter struct {
-	RedisClient *redis.Client
+	RedisClient cache.RedisClientInterface
 	Limit       int
 	Window      time.Duration
 }
 
-func NewRateLimiter(redisClient *redis.Client, limit int, window time.Duration) *RateLimiter {
+func NewRateLimiter(redisClient cache.RedisClientInterface, limit int, window time.Duration) *RateLimiter {
 	return &RateLimiter{
 		RedisClient: redisClient,
 		Limit:       limit,

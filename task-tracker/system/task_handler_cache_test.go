@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"task-tracker/cache"
+	"task-tracker/common"
 	"task-tracker/component"
 	"task-tracker/storage"
 
@@ -58,7 +59,7 @@ func TestGetTask_CacheHit(t *testing.T) {
 	req = mux.SetURLVars(req, map[string]string{"id": "1"})
 
 	// ⚠️ Mock context with userID (nếu handler dùng context để lấy userID)
-	ctx := context.WithValue(req.Context(), "userID", 1)
+	ctx := context.WithValue(req.Context(), common.ContextUserIDKey, 1)
 	req = req.WithContext(ctx)
 
 	w := httptest.NewRecorder()
@@ -137,7 +138,7 @@ func TestCacheInvalidation_OnDelete(t *testing.T) {
 	// 8. Tạo HTTP request
 	req := httptest.NewRequest("DELETE", "/tasks/1", nil)
 	req = mux.SetURLVars(req, map[string]string{"id": "1"})
-	ctx := context.WithValue(req.Context(), "userID", userID)
+	ctx := context.WithValue(req.Context(), common.ContextUserIDKey, userID)
 	req = req.WithContext(ctx)
 	w := httptest.NewRecorder()
 

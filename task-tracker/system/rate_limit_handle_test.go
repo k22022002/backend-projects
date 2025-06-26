@@ -4,25 +4,41 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"testing"
-
 	"task-tracker/common"
+	"task-tracker/middleware"
+	"testing"
+	"time"
+
+	"github.com/go-redis/redis/v8"
 )
 
-func TestRateLimitStatusHandler(t *testing.T) {
-	req := httptest.NewRequest("GET", "/rate-limit", nil)
+func TestRateLimitMiddleware(t *testing.T) {
+	rdb := redis.NewClient(&redis.Options{
+		Addr: "localhost:6379",
+	})
+	defer rdb.Close()
+
+	limiter := middleware.NewRateLimiter(rdb, 100, time.Hour)
+
+	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	handler := limiter.Middleware(testHandler)
+
+	req := httptest.NewRequest("GET", "/tasks", nil)
 	ctx := context.WithValue(req.Context(), common.ContextUserIDKey, 123)
+
 	req = req.WithContext(ctx)
 
-	rr := httptest.NewRecorder()
-	RateLimitStatusHandler(rr, req)
-
-	if rr.Code != http.StatusOK {
-		t.Errorf("Expected 200 OK, got %d", rr.Code)
+	var lastStatus int
+	for i := 0; i < 101; i++ {
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+		lastStatus = rr.Code
 	}
 
-	contentType := rr.Header().Get("Content-Type")
-	if contentType != "application/json" {
-		t.Errorf("Expected Content-Type application/json, got %s", contentType)
+	if lastStatus != http.StatusTooManyRequests {
+		t.Errorf("Expected 429 Too Many Requests, got %d", lastStatus)
 	}
 }

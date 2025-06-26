@@ -1,11 +1,9 @@
-package system_test
+package system
 
 import (
 	"context"
 	"testing"
 	"time"
-
-	"task-tracker/system"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
@@ -20,14 +18,14 @@ func TestNotificationWorkerPool_ProcessesJob(t *testing.T) {
 		WithArgs(1, "Task Created", sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
-	pool := system.NewNotificationWorkerPool(db, 1)
+	pool := NewNotificationWorkerPool(db, 1)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	go pool.Start(ctx)
 
 	// Gửi 1 job
-	pool.JobQueue <- system.NotificationJob{
+	pool.JobQueue <- NotificationJob{
 		TaskID:  1,
 		Message: "Task Created",
 	}

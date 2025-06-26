@@ -35,7 +35,7 @@ import (
 // @Router /tasks [get]
 func (h *Handler) GetAllTasks(w http.ResponseWriter, r *http.Request) {
 	// Xác thực user
-	userIDVal := r.Context().Value("userID")
+	userIDVal := r.Context().Value(common.ContextUserIDKey)
 	userID, ok := userIDVal.(int)
 	if !ok {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
@@ -84,10 +84,10 @@ func (h *Handler) GetAllTasks(w http.ResponseWriter, r *http.Request) {
 
 	// Lấy task theo phân trang
 	dataQuery := fmt.Sprintf(`
-		SELECT id, description, status, created_at, updated_at, user_id
-		FROM tasks %s
-		ORDER BY created_at DESC
-		LIMIT ? OFFSET ?`, whereClause)
+			SELECT id, description, status, created_at, updated_at, user_id
+			FROM tasks %s
+			ORDER BY created_at DESC
+			LIMIT ? OFFSET ?`, whereClause)
 	args = append(args, limit, offset)
 
 	rows, err := h.DB.Query(dataQuery, args...)
@@ -144,7 +144,7 @@ func (h *Handler) GetAllTasks(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {string} string "Server error"
 // @Router /tasks/{id} [get]
 func (h *Handler) GetTask(w http.ResponseWriter, r *http.Request) {
-	userIDVal := r.Context().Value("userID")
+	userIDVal := r.Context().Value(common.ContextUserIDKey)
 	userID, ok := userIDVal.(int)
 	if !ok {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
@@ -202,7 +202,7 @@ func (h *Handler) GetTask(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {string} string "Server error"
 // @Router /tasks [post]
 func (h *Handler) CreateTask(w http.ResponseWriter, r *http.Request) {
-	userID, ok := r.Context().Value("userID").(int)
+	userID, ok := r.Context().Value(common.ContextUserIDKey).(int)
 	if !ok {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -249,8 +249,8 @@ func (h *Handler) CreateTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	task.ID = int(lastInsertID)
-	task.CreatedAt = timeNow
-	task.UpdatedAt = timeNow
+	task.CreatedAt = time.Now()
+	task.UpdatedAt = time.Now()
 	task.UserID = userID
 
 	w.Header().Set("Content-Type", "application/json")
@@ -292,7 +292,7 @@ func (h *Handler) CreateTask(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {string} string "Server error"
 // @Router /tasks/{id} [put]
 func (h *Handler) UpdateTask(w http.ResponseWriter, r *http.Request) {
-	userID, ok := r.Context().Value("userID").(int)
+	userID, ok := r.Context().Value(common.ContextUserIDKey).(int)
 	if !ok {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -382,7 +382,7 @@ func (h *Handler) UpdateTask(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {string} string "Server error"
 // @Router /tasks/{id} [delete]
 func (h *Handler) DeleteTask(w http.ResponseWriter, r *http.Request) {
-	userID, ok := r.Context().Value("userID").(int)
+	userID, ok := r.Context().Value(common.ContextUserIDKey).(int)
 	if !ok {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -440,7 +440,7 @@ func (h *Handler) DeleteTask(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) FilterTasksByStatus(w http.ResponseWriter, r *http.Request) {
-	userID := r.Context().Value("userID").(int)
+	userID := r.Context().Value(common.ContextUserIDKey).(int)
 	status := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("status")))
 
 	validStatuses := map[string]bool{

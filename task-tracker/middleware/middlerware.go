@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"task-tracker/common"
-	handler "task-tracker/system"
 
 	"github.com/golang-jwt/jwt/v5"
 	"go.uber.org/zap"
@@ -22,7 +21,7 @@ func JWTMiddleware(next http.Handler) http.Handler {
 		}
 
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
-		claims := &handler.Claims{}
+		claims := &common.Claims{}
 		token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
 			return []byte("your-secret-key"), nil
 		})

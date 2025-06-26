@@ -10,6 +10,7 @@ import (
 	_ "task-tracker/docs" // Import the generated docs package
 	"task-tracker/middleware"
 	"task-tracker/storage/sqlite"
+	"task-tracker/system"
 	handler "task-tracker/system"
 	"task-tracker/ws"
 
@@ -59,6 +60,7 @@ func NewRouter() http.Handler {
 	s.HandleFunc("/{id:[0-9]+}", h.UpdateTask).Methods("PUT")
 	s.HandleFunc("/{id:[0-9]+}", h.DeleteTask).Methods("DELETE")
 	s.HandleFunc("/notifications", h.GetNotifications).Methods("GET")
-	r.Handle("/rate-limit", middleware.JWTMiddleware(http.HandlerFunc(handler.RateLimitStatusHandler))).Methods("GET")
+	r.Handle("/rate-limit", middleware.JWTMiddleware(system.RateLimitStatusHandler(cache.RedisClient))).Methods("GET")
+
 	return r
 }

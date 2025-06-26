@@ -4,19 +4,20 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"task-tracker/cache"
 	"task-tracker/common"
 	"task-tracker/middleware"
-	"task-tracker/system"
 	"testing"
 	"time"
 
+	"github.com/alicebob/miniredis"
+	"github.com/go-redis/redis/v8"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func generateTestToken(userID int) string {
-	claims := &system.Claims{
+	claims := &common.Claims{
 		UserID: userID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(1 * time.Hour)),
@@ -82,7 +83,13 @@ func TestJWTMiddleware_ValidToken(t *testing.T) {
 
 	var extractedUserID int
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		extractedUserID = r.Context().Value("userID").(int)
+		val := r.Context().Value(common.ContextUserIDKey)
+		userID, ok := val.(int)
+		if !ok {
+			t.Fatal("user_id not found or invalid")
+		}
+		extractedUserID = userID
+
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -92,20 +99,24 @@ func TestJWTMiddleware_ValidToken(t *testing.T) {
 	assert.Equal(t, 123, extractedUserID)
 }
 func TestRateLimitMiddleware(t *testing.T) {
-	// Khởi tạo middleware với Redis giả lập (hoặc real client)
-	limiter := middleware.NewRateLimiter(cache.RedisClient, 100, time.Hour)
+	s, err := miniredis.Run()
+	require.NoError(t, err)
+	defer s.Close()
 
-	// Mock handler sẽ được gọi nếu vượt qua middleware
+	rdb := redis.NewClient(&redis.Options{
+		Addr: s.Addr(),
+	})
+
+	limiter := middleware.NewRateLimiter(rdb, 100, time.Hour)
+
 	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	// Gắn middleware
 	handler := limiter.Middleware(testHandler)
 
-	// Tạo request giả có user_id
 	req := httptest.NewRequest("GET", "/tasks", nil)
-	ctx := context.WithValue(req.Context(), common.ContextUserIDKey, 123)
+	ctx := context.WithValue(req.Context(), "user_id", "testuser") // dùng string để dễ gán key
 	req = req.WithContext(ctx)
 
 	var lastStatus int

@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"sync"
+	"task-tracker/common"
 	"task-tracker/entity"
 	"time"
 )
@@ -73,7 +74,7 @@ func (p *NotificationWorkerPool) insertNotification(job NotificationJob) error {
 }
 
 func (h *Handler) GetNotifications(w http.ResponseWriter, r *http.Request) {
-	userID, ok := r.Context().Value("userID").(int)
+	userID, ok := r.Context().Value(common.ContextUserIDKey).(int)
 	if !ok {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
