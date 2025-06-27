@@ -1,10 +1,10 @@
 package system
 
 import (
-	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -407,8 +407,15 @@ func (h *Handler) DeleteTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Xóa cache
-	cache.RedisClient.Del(context.Background(), fmt.Sprintf("task:%d", id))
-	cache.RedisClient.Del(context.Background(), fmt.Sprintf("tasks:user:%d:status:%s", userID, status))
+	ctx := r.Context()
+
+	if err := cache.RedisClient.Del(ctx, fmt.Sprintf("task:%d", id)).Err(); err != nil {
+		log.Printf("[DEBUG] Redis DEL task:%d failed: %v", id, err)
+	}
+
+	if err := cache.RedisClient.Del(ctx, fmt.Sprintf("tasks:user:%d:status:%s", userID, status)).Err(); err != nil {
+		log.Printf("[DEBUG] Redis DEL status failed: %v", err)
+	}
 
 	// Xóa DB
 	res, err := h.DB.Exec("DELETE FROM tasks WHERE id = ? AND user_id = ?", id, userID)

@@ -12,6 +12,7 @@ import (
 	"task-tracker/common"
 	"task-tracker/component"
 	"task-tracker/storage"
+	"task-tracker/ws"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/go-redis/redismock/v8"
@@ -104,48 +105,54 @@ func TestGetTask_CacheMiss(t *testing.T) {
 }
 
 func TestCacheInvalidation_OnDelete(t *testing.T) {
-	// 1. Redis mock
+	// Redis mock
 	redisClient, redisMock := redismock.NewClientMock()
 	cache.RedisClient = redisClient
 	defer redisClient.Close()
 
-	// 2. SQL mock
+	// SQL mock
 	db, sqlMock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
 
-	// 3. Handler
 	handler := &Handler{DB: db}
 
-	// 4. Dữ liệu mock
 	taskID := 1
 	userID := 1
 
-	// 5. Mock DB SELECT status
 	sqlMock.ExpectQuery("SELECT status FROM tasks").
 		WithArgs(taskID, userID).
 		WillReturnRows(sqlmock.NewRows([]string{"status"}).AddRow("todo"))
 
-	// 6. Mock Redis xóa cache
 	redisMock.ExpectDel("task:1").SetVal(1)
 	redisMock.ExpectDel("tasks:user:1:status:todo").SetVal(1)
 
-	// 7. Mock DB DELETE
 	sqlMock.ExpectExec("DELETE FROM tasks WHERE id = \\? AND user_id = \\?").
 		WithArgs(taskID, userID).
-		WillReturnResult(sqlmock.NewResult(1, 1)) // 1 row affected
+		WillReturnResult(sqlmock.NewResult(1, 1))
 
-	// 8. Tạo HTTP request
+	// 🛠️ Mock WebSocket Hub để không bị treo
+	ws.WsHub = &ws.Hub{
+		Broadcast: make(chan common.NotificationJob, 1),
+	}
+	go func() {
+		for range ws.WsHub.Broadcast {
+			// consume để tránh block
+		}
+	}()
+
+	// Prepare request
 	req := httptest.NewRequest("DELETE", "/tasks/1", nil)
 	req = mux.SetURLVars(req, map[string]string{"id": "1"})
 	ctx := context.WithValue(req.Context(), common.ContextUserIDKey, userID)
 	req = req.WithContext(ctx)
+
 	w := httptest.NewRecorder()
 
-	// 9. Gọi handler
-	handler.DeleteTask(w, req)
+	router := mux.NewRouter()
+	router.HandleFunc("/tasks/{id}", handler.DeleteTask).Methods("DELETE")
+	router.ServeHTTP(w, req)
 
-	// 10. Kiểm tra kết quả
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.NoError(t, redisMock.ExpectationsWereMet())
 	assert.NoError(t, sqlMock.ExpectationsWereMet())
