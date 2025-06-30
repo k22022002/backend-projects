@@ -486,3 +486,54 @@ func (h *Handler) FilterTasksByStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Write(prettyJSON)
 }
+func (h *Handler) CreateTaskV2(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value(common.ContextUserIDKey).(int)
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var task entity.Task
+	if err := json.NewDecoder(r.Body).Decode(&task); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	if strings.TrimSpace(task.Description) == "" {
+		http.Error(w, "Description is required", http.StatusBadRequest)
+		return
+	}
+
+	validStatuses := map[string]bool{
+		"todo": true, "in_progress": true, "done": true,
+	}
+	if _, ok := validStatuses[task.Status]; !ok {
+		http.Error(w, "Invalid status", http.StatusBadRequest)
+		return
+	}
+
+	timeNow := time.Now().Format(time.RFC3339)
+	var dueDate interface{} = nil
+	if task.DueDate != nil {
+		dueDate = task.DueDate.Format("2006-01-02")
+	}
+
+	res, err := h.DB.Exec(
+		"INSERT INTO tasks (description, status, created_at, updated_at, user_id, due_date) VALUES (?, ?, ?, ?, ?, ?)",
+		task.Description, task.Status, timeNow, timeNow, userID, dueDate,
+	)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	lastID, _ := res.LastInsertId()
+	task.ID = int(lastID)
+	task.CreatedAt = time.Now()
+	task.UpdatedAt = time.Now()
+	task.UserID = userID
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(task)
+}

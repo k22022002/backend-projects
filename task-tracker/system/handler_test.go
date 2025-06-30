@@ -977,3 +977,52 @@ func TestHandler_GetNotifications(t *testing.T) {
 
 	require.NoError(t, mock.ExpectationsWereMet())
 }
+func TestCreateTaskV2(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	h := &Handler{DB: db}
+
+	// Vô hiệu hóa Redis, WebSocket
+	cache.RedisClient = nil
+	cache.Ctx = nil
+	ws.WsHub = nil
+
+	// Tạo payload đúng định dạng RFC3339
+	dueDate := time.Now().AddDate(0, 0, 7).UTC()
+	payload := fmt.Sprintf(`{"description":"New task","status":"todo","due_date":"%s"}`, dueDate.Format(time.RFC3339))
+
+	req := httptest.NewRequest("POST", "/v2/tasks", strings.NewReader(payload))
+	req = req.WithContext(context.WithValue(req.Context(), common.ContextUserIDKey, 1))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	// Do handler truyền due_date dưới dạng string: "YYYY-MM-DD"
+	mock.ExpectExec("INSERT INTO tasks").
+		WithArgs(
+			"New task",
+			"todo",
+			sqlmock.AnyArg(),             // created_at
+			sqlmock.AnyArg(),             // updated_at
+			1,                            // user_id
+			dueDate.Format("2006-01-02"), // 🟢 chuỗi, không phải time.Time
+		).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+
+	http.HandlerFunc(h.CreateTaskV2).ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusCreated, rr.Code)
+
+	// fmt.Println("RESPONSE BODY:", rr.Body.String())
+
+	var task entity.Task
+	err = json.Unmarshal(rr.Body.Bytes(), &task)
+	require.NoError(t, err)
+	assert.Equal(t, "New task", task.Description)
+	assert.Equal(t, "todo", task.Status)
+	assert.NotNil(t, task.DueDate)
+	assert.Equal(t, dueDate.Format("2006-01-02"), task.DueDate.Format("2006-01-02"))
+
+	require.NoError(t, mock.ExpectationsWereMet())
+}

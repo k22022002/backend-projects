@@ -458,6 +458,9 @@ const docTemplate = `{
                 "description": {
                     "type": "string"
                 },
+                "due_date": {
+                    "type": "string"
+                },
                 "id": {
                     "type": "integer"
                 },

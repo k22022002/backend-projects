@@ -61,6 +61,9 @@ func NewRouter() http.Handler {
 	s.HandleFunc("/{id:[0-9]+}", h.DeleteTask).Methods("DELETE")
 	s.HandleFunc("/notifications", h.GetNotifications).Methods("GET")
 	r.Handle("/rate-limit", middleware.JWTMiddleware(system.RateLimitStatusHandler(cache.RedisClient))).Methods("GET")
-
+	v2 := r.PathPrefix("/v2").Subrouter()
+	v2.Use(middleware.JWTMiddleware)
+	v2.HandleFunc("/tasks", h.CreateTaskV2).Methods("POST")
+	v2.HandleFunc("/tasks", h.GetAllTasksV2).Methods("GET")
 	return r
 }

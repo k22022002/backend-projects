@@ -116,7 +116,7 @@ func TestRateLimitMiddleware(t *testing.T) {
 	handler := limiter.Middleware(testHandler)
 
 	req := httptest.NewRequest("GET", "/tasks", nil)
-	ctx := context.WithValue(req.Context(), "user_id", "testuser") // dùng string để dễ gán key
+	ctx := context.WithValue(req.Context(), common.ContextUserIDKey, 123) // ✅ dùng int đúng kiểu
 	req = req.WithContext(ctx)
 
 	var lastStatus int
