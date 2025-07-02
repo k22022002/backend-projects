@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"task-tracker/api"
 	"task-tracker/cache"
+	"task-tracker/storage/sqlite"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -30,6 +31,7 @@ import (
 // @name Authorization
 
 func main() {
+	sqlite.MigrateDB("file:data.db?cache=shared&mode=rwc")
 	// ✅ Khởi tạo Redis trước khi chạy HTTP server
 	if err := cache.InitRedis("redis:6379"); err != nil {
 		log.Fatalf("Không thể kết nối Redis: %v", err)

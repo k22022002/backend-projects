@@ -1,0 +1,14 @@
+-- +goose Up
+CREATE TABLE tasks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    description TEXT NOT NULL,
+    status TEXT NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    user_id INTEGER NOT NULL,
+    due_date DATETIME,
+    FOREIGN KEY(user_id) REFERENCES users(id)
+);
+
+-- +goose Down
+DROP TABLE IF EXISTS tasks;
